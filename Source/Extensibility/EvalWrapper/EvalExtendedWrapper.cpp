@@ -63,13 +63,13 @@ generic<class ElemType>
         {
             int get() 
             {
-                return m_buffer == nullptr ? 0 : m_buffer.Length < m_size ? m_buffer->Length : m_size;
+                return m_buffer == nullptr ? 0 : m_buffer->Length < m_size ? m_buffer->Length : m_size;
             }
             void set(int newSize)
             {
                 if (newSize > m_buffer->Length)
                 {
-                    throw gcnew CNTKRuntimeException("Cannot exapnd dynamically, instead re-assign a new Buffer.", String::Empty);
+                    throw gcnew CNTKRuntimeException("Cannot expand dynamically, instead re-assign a new Buffer.", String::Empty);
                 }
                 m_size = newSize;
             }
@@ -232,14 +232,6 @@ template<typename ElemType>
 public ref class ModelEvaluationExtended : IDisposable
 {
     typedef std::pair<std::wstring, std::vector<ElemType>*> MapEntry;
-
-private:
-    static ModelEvaluationExtended()
-    {
-        //s_mapNodeGroups = gcnew Dictionary<int, NodeGroup>(){
-        //    { 1, NodeGroup::Input }
-        //};
-    }
 
 public:
     /// <summary>Initializes a new instance of the <see cref="ModelEvaluationExtended"> class.</summary>
@@ -413,8 +405,6 @@ protected:
 private:
     // Native model evaluation instance
     IEvaluateModelExtended<ElemType> *m_eval;
-    static Dictionary<int, NodeGroup>^ s_mapNodeGroups; 
-    
 
     /// <summary> Throws a CLR exception based on a native exception</summary>
     /// <param name="ex">The native exception to throw as a CLR exception</param>

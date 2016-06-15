@@ -33,15 +33,15 @@ namespace Microsoft.MSR.CNTK.Extensibility.Managed.Tests
         [TestMethod]
         public void EvalManagedConstantNetworkTest()
         {
-            string modelDefinition = "precision = \"float\" \n" +
-                "traceLevel = 1 \n" +
-                "run=NDLNetworkBuilder \n" +
-                "NDLNetworkBuilder=[ \n" +
-                "v1 = Constant(1) \n" +
-                "v2 = Constant(2, tag=\"output\") \n" +
-                "ol = Plus(v1, v2, tag=\"output\") \n" +
-                "FeatureNodes = (v1) \n" +
-                "] \n";
+            string modelDefinition = @"precision = ""float""
+                traceLevel = 1
+                run=NDLNetworkBuilder 
+                NDLNetworkBuilder=[ 
+                v1 = Constant(1)
+                v2 = Constant(2, tag=""output"") 
+                ol = Plus(v1, v2, tag=""output"")
+                FeatureNodes = (v1)
+                ]";
 
             using (var model = new ModelEvaluationExtendedF())
             {
@@ -70,14 +70,14 @@ namespace Microsoft.MSR.CNTK.Extensibility.Managed.Tests
         [TestMethod]
         public void EvalManagedScalarTimesTest()
         {
-            string modelDefinition = "precision = \"float\" \n" +
-                "traceLevel = 1 \n" +
-                "run=NDLNetworkBuilder \n" +
-                "NDLNetworkBuilder=[ \n" +
-                "i1 = Input(1) \n" +
-                "o1 = Times(Constant(3), i1, tag=\"output\") \n" +
-                "FeatureNodes = (i1) \n" +
-                "] \n";
+            string modelDefinition = @"precision = ""float"" 
+                traceLevel = 1
+                run=NDLNetworkBuilder
+                NDLNetworkBuilder=[
+                i1 = Input(1)
+                o1 = Times(Constant(3), i1, tag=""output"") 
+                FeatureNodes = (i1)
+                ]";
 
             using (var model = new ModelEvaluationExtendedF())
             {
@@ -108,15 +108,14 @@ namespace Microsoft.MSR.CNTK.Extensibility.Managed.Tests
         [TestMethod]
         public void EvalManagedSparseTimesTest()
         {
-            string modelDefinition = "deviceId = -1 \n" + 
-                "precision = \"float\" \n" +
-                "traceLevel = 1 \n" +
-                "run=NDLNetworkBuilder \n" +
-                "NDLNetworkBuilder=[ \n" +
-                "i1 = SparseInput(3) \n" +
-                "o1 = Times(Constant(2, rows=1, cols=3), i1, tag=\"output\") \n" +
-                "FeatureNodes = (i1) \n" +
-                "] \n";
+            string modelDefinition = @"deviceId = -1 
+                precision = ""float"" traceLevel = 1
+                run=NDLNetworkBuilder
+                NDLNetworkBuilder=[ 
+                i1 = SparseInput(3)
+                o1 = Times(Constant(2, rows=1, cols=3), i1, tag=""output"") 
+                FeatureNodes = (i1)
+                ]";
 
             using (var model = new ModelEvaluationExtendedF())
             {
@@ -159,17 +158,17 @@ namespace Microsoft.MSR.CNTK.Extensibility.Managed.Tests
         [TestMethod]
         public void EvalManagedScalarTimesDualOutputTest()
         {
-            string modelDefinition = "deviceId = -1 \n" +
-                "precision = \"float\" \n" +
-                "traceLevel = 1 \n" +
-                "run=NDLNetworkBuilder \n" +
-                "NDLNetworkBuilder=[ \n" +
-                "i1 = Input(1) \n" +
-                "i2 = Input(1) \n" +
-                "o1 = Times(Constant(3), i1, tag=\"output\") \n" +
-                "o2 = Times(Constant(5), i1, tag=\"output\") \n" +
-                "FeatureNodes = (i1) \n" +
-                "] \n";
+            string modelDefinition = @"deviceId = -1 
+                precision = ""float""
+                traceLevel = 1
+                run=NDLNetworkBuilder
+                NDLNetworkBuilder=[
+                i1 = Input(1)
+                i2 = Input(1)
+                o1 = Times(Constant(3), i1, tag=""output"")
+                o2 = Times(Constant(5), i1, tag=""output"")
+                FeatureNodes = (i1)
+                ]";
 
             using (var model = new ModelEvaluationExtendedF())
             {
