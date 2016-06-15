@@ -14,6 +14,7 @@
 #include <msclr\marshal_cppstd.h>
 
 #include "CNTKException.h"
+#include "EvalCommon.h"
 #include "Eval.h"
 
 #using <System.dll>
@@ -32,27 +33,6 @@ namespace Native = Microsoft::MSR::CNTK;
 template<typename ElemType>
 using GetEvalProc = void(*)(IEvaluateModelExtended<ElemType>**);
 
-/// Enumeration for the types of nodes
-public enum class NodeGroup
-{
-    nodeInput,  // an input node
-    nodeOutput, // an output node
-    nodeSpecified
-};
-
-enum class DataType
-{
-    Float32,
-    Float64
-};
-
-enum class StorageType
-{
-    Undetermined,
-    Dense,
-    Sparse,
-};
-
 //
 // A buffer to keep data for all samples in a (variable length) sequence 
 // from a single input or output.
@@ -69,11 +49,11 @@ generic<class ElemType>
         ValueBuffer(int bufferSize)
         {
             m_buffer = gcnew array<ElemType>(bufferSize);
+            m_size = bufferSize;
         }
 
-        ValueBuffer(int bufferSize, int indicesSize, int colIndicesSize)
+        ValueBuffer(int bufferSize, int indicesSize, int colIndicesSize) : ValueBuffer(bufferSize)
         {
-            m_buffer = gcnew array<ElemType>(bufferSize);
             m_indices = gcnew array<int>(indicesSize);
             m_colIndices = gcnew array<int>(colIndicesSize);
         }
@@ -81,10 +61,20 @@ generic<class ElemType>
         // Returns the current allocated size for the buffer or 0 if empty or no buffer allocated
         property int Size
         {
-            int get() {
-                return m_buffer == nullptr ? 0 : m_buffer->Length;
+            int get() 
+            {
+                return m_buffer == nullptr ? 0 : m_buffer.Length < m_size ? m_buffer->Length : m_size;
+            }
+            void set(int newSize)
+            {
+                if (newSize > m_buffer->Length)
+                {
+                    throw gcnew CNTKRuntimeException("Cannot exapnd dynamically, instead re-assign a new Buffer.", String::Empty);
+                }
+                m_size = newSize;
             }
         }
+
         //
         // All elements of a sequence, concatenated.
         // For dense inputs, the number of samples is given by the the length of
@@ -94,12 +84,15 @@ generic<class ElemType>
         //
         property array<ElemType>^ Buffer
         {
-            array<ElemType>^ get(){
+            array<ElemType>^ get()
+            {
                 return m_buffer;
             }
 
-            void set(array<ElemType>^ buffer){
+            void set(array<ElemType>^ buffer)
+            {
                 m_buffer = buffer;
+                m_size = m_buffer == nullptr ? 0 : m_buffer->Length;
             }
         }
 
@@ -119,7 +112,8 @@ generic<class ElemType>
         //
         property array<int>^ Indices 
         { 
-            array<int>^ get() {
+            array<int>^ get() 
+            {
                 return m_indices;
             }
 
@@ -135,11 +129,13 @@ generic<class ElemType>
         // See http://docs.nvidia.com/cuda/cusparse/#compressed-sparse-column-format-csc
         //
         property array<int>^ ColIndices {
-            array<int>^ get() {
+            array<int>^ get() 
+            {
                 return m_colIndices;
             }
 
-            void set(array<int>^ colIndices) {
+            void set(array<int>^ colIndices)
+            {
                 m_colIndices = colIndices;
             }
         }
@@ -154,6 +150,7 @@ generic<class ElemType>
     // For sparse inputs, the number of samples is indicated by the m_colIndices field.
     //
     array<ElemType>^ m_buffer;
+    int m_size;
 
     // In case of sparse data, the following is also used. Otherwise, the 
     // contents are ignored.
@@ -207,7 +204,7 @@ public:
             throw gcnew CNTKRuntimeException("Expected max lengths for all variables.", String::Empty);
         }
 
-        List<ValueBuffer<ElemType>^>^ buffers = gcnew List<ValueBuffer<ElemType>^>(this->Count);
+        auto buffers = gcnew List<ValueBuffer<ElemType>^>(this->Count);
         for (int i = 0; i < this->Count; i++)
         {
             buffers->Add(gcnew ValueBuffer<ElemType>(this[i]->NumElements * maxLengths[i]));
@@ -220,13 +217,13 @@ public:
     generic<typename ElemType>
     List<ValueBuffer<ElemType>^>^ CreateBuffers()
     {
-        List<ValueBuffer<ElemType>^>^ buffers = gcnew List<ValueBuffer<ElemType>^>(this->Count);
+        auto maxLengths = gcnew List<int>(this->Count);
         for (int i = 0; i < this->Count; i++)
         {
-            buffers->Add(gcnew ValueBuffer<ElemType>(this[i]->NumElements));
+            maxLengths->Add(1);
         }
 
-        return buffers;
+        return this->CreateBuffers<ElemType>(maxLengths);
     }
 };
 
@@ -235,6 +232,14 @@ template<typename ElemType>
 public ref class ModelEvaluationExtended : IDisposable
 {
     typedef std::pair<std::wstring, std::vector<ElemType>*> MapEntry;
+
+private:
+    static ModelEvaluationExtended()
+    {
+        //s_mapNodeGroups = gcnew Dictionary<int, NodeGroup>(){
+        //    { 1, NodeGroup::Input }
+        //};
+    }
 
 public:
     /// <summary>Initializes a new instance of the <see cref="ModelEvaluationExtended"> class.</summary>
@@ -286,30 +291,34 @@ public:
     }
 
     //
-    // GetOutputSchema - retrieve information about tensor shapes and memory layout of the outputs for this
-    // model.
+    // GetSchema - retrieve information about tensor shapes and memory layout for this model.
     //
-    VariableSchema^ GetOutputSchema()
+    VariableSchema^ GetSchema(NodeGroup nodeGroup)
     {
         if (m_eval == nullptr)
         {
             throw gcnew ObjectDisposedException("Object has been disposed.");
         }
 
-        auto outputLayout = m_eval->GetOutputSchema();
-
-        auto outputSchema = gcnew VariableSchema();
-        for (auto& lay : outputLayout)
+        if (nodeGroup != NodeGroup::Input && nodeGroup != NodeGroup::Output)
         {
-            VariableLayout^ layout = gcnew VariableLayout();
-            layout->Name = gcnew String(lay.m_name.c_str());
-            layout->DataType = GetDataType(lay.m_dataType);
-            layout->NumElements = lay.m_numElements;
-            layout->StorageType = GetStorageType(lay.m_storageType);
-
-            outputSchema->Add(layout);
+            throw gcnew CNTKInvalidArgumentException("The nodeGroup argument is invalid.", String::Empty);
         }
-        return outputSchema;
+
+        auto layouts = nodeGroup == NodeGroup::Input ? m_eval->GetInputSchema() : m_eval->GetOutputSchema();
+
+        auto schema = gcnew VariableSchema();
+        for (auto& lay : layouts)
+        {
+            VariableLayout^ varlayout = gcnew VariableLayout();
+            varlayout->Name = gcnew String(lay.m_name.c_str());
+            varlayout->DataType = GetDataType(lay.m_dataType);
+            varlayout->NumElements = lay.m_numElements;
+            varlayout->StorageType = GetStorageType(lay.m_storageType);
+
+            schema->Add(varlayout);
+        }
+        return schema;
     }
 
     //
@@ -335,32 +344,6 @@ public:
     }
 
     //
-    // GetInputSchema - 
-    //
-    VariableSchema^ GetInputSchema()
-    {
-        if (m_eval == nullptr)
-        {
-            throw gcnew ObjectDisposedException("Object has been disposed.");
-        }
-
-        auto inputLayout = m_eval->GetInputSchema();
-
-        auto inputSchema = gcnew VariableSchema();
-        for (auto& lay : inputLayout)
-        {
-            VariableLayout^ layout = gcnew VariableLayout();
-            layout->Name = gcnew String(lay.m_name.c_str());
-            layout->DataType = GetDataType(lay.m_dataType);
-            layout->NumElements = lay.m_numElements;
-            layout->StorageType = GetStorageType(lay.m_storageType);
-
-            inputSchema->Add(layout);
-        }
-        return inputSchema;
-    }
-
-    //
     // Forward Pass - Evaluate (perform a forward pass for) a single unit using the model with the given inputs and 
     // outputs.
     // The layout and shape of the data in inputs vector must match the schema returned by GetInputLayouts.
@@ -381,7 +364,7 @@ public:
         {
             Native::ValueRefs<ElemType> stdInputs;
             Native::ValueRefs<ElemType> stdOutputs;
-            Native::ValueBuffer<ElemType, Native::VectorRef>* vb = new Native::ValueBuffer<ElemType, Native::VectorRef>();
+            Native::ValueBuffer<ElemType, Native::VectorRef> vb;
 
             // Hold gc objects in the stack, while performing native actions
             vector<gcroot<array<ElemType>^>*> pinBuffers;
@@ -389,81 +372,8 @@ public:
 
             // Map the managed space into the native space, results will be written directly into the managed memory space
             // https://msdn.microsoft.com/en-us/library/1dz8byfh.aspx
-
-            for each (auto item in inputs)
-            {
-                int size = item->Size;
-                // gcroot object manages the pointer so that it always corresponds to the correct managed location (even after gc relocation)
-                gcroot<array<ElemType>^>* pBuf;
-                gcroot<array<int>^>* pInd;
-                gcroot<array<int>^>* pColInd;
-
-                // Buffer is required
-                if (item->Buffer == nullptr)
-                {
-                    throw gcnew CNTKRuntimeException("Invalid buffer (empty) for input argument into ForwardPass", String::Empty);
-                }
-
-                pBuf = new gcroot<array<ElemType>^>(item->Buffer);
-                pin_ptr<ElemType> pp = &(*pBuf)[0];
-                pinBuffers.push_back(pBuf);
-                vb->m_buffer.InitFrom(pp, size, size);
-
-                if (item->Indices != nullptr)
-                {
-                    pInd = new gcroot<array<int>^>(item->Indices);
-                    pin_ptr<int> pi = &(*pInd)[0];
-                    pinIndices.push_back(pInd);
-                    vb->m_indices.InitFrom(pi, item->Indices->Length, item->Indices->Length);
-                }
-
-                if (item->ColIndices != nullptr)
-                {
-                    pColInd = new gcroot<array<int>^>(item->ColIndices);
-                    pin_ptr<int> pci = &(*pColInd)[0];
-                    pinIndices.push_back(pColInd);
-                    vb->m_colIndices.InitFrom(pci, item->ColIndices->Length, item->ColIndices->Length);
-                }
-
-                stdInputs.push_back(*vb);
-            }
-
-            for each (auto item in outputs)
-            {
-                int size = item->Size;
-                gcroot<array<ElemType>^>* pBuf;
-                gcroot<array<int>^>* pInd;
-                gcroot<array<int>^>* pColInd;
-
-                // Buffer is required
-                if (item->Buffer == nullptr)
-                {
-                    throw gcnew CNTKRuntimeException("Invalid buffer (empty) for output argument into ForwardPass", String::Empty);
-                }
-
-                pBuf = new gcroot<array<ElemType>^>(item->Buffer);
-                pin_ptr<ElemType> pp = &(*pBuf)[0];
-                pinBuffers.push_back(pBuf);
-                vb->m_buffer.InitFrom(pp, size, size);
-
-                if (item->Indices != nullptr)
-                {
-                    pInd = new gcroot<array<int>^>(item->Indices);
-                    pin_ptr<int> pi = &(*pInd)[0];
-                    pinIndices.push_back(pInd);
-                    vb->m_indices.InitFrom(pi, item->Indices->Length, item->Indices->Length);
-                }
-                
-                if (item->ColIndices != nullptr)
-                {
-                    pColInd = new gcroot<array<int>^>(item->ColIndices);
-                    pin_ptr<int> pci = &(*pColInd)[0];
-                    pinIndices.push_back(pColInd);
-                    vb->m_colIndices.InitFrom(pci, item->ColIndices->Length, item->ColIndices->Length);
-                }
-
-                stdOutputs.push_back(*vb);
-            }
+            TransferVectorsToValueBuffers(inputs, vb, stdInputs, pinBuffers, pinIndices);
+            TransferVectorsToValueBuffers(outputs, vb, stdOutputs, pinBuffers, pinIndices);
 
             try
             {
@@ -503,7 +413,9 @@ protected:
 private:
     // Native model evaluation instance
     IEvaluateModelExtended<ElemType> *m_eval;
+    static Dictionary<int, NodeGroup>^ s_mapNodeGroups; 
     
+
     /// <summary> Throws a CLR exception based on a native exception</summary>
     /// <param name="ex">The native exception to throw as a CLR exception</param>
     /// <returns>A CLR exception</returns>
@@ -573,10 +485,48 @@ private:
             return StorageType::Dense;
         case StorageType::Sparse:
             return StorageType::Sparse;
-        case StorageType::Undetermined:
-            return StorageType::Undetermined;
+        case StorageType::Unknown:
+            return StorageType::Unknown;
         default:
             throw gcnew CNTKRuntimeException(String::Format("Cannot convert native StorageType with value: {0} to corresponding managed StorageType.", (int)storageType), "");
+        }
+    }
+
+    void TransferVectorsToValueBuffers(List<ValueBuffer<ElemType>^>^ list, Native::ValueBuffer<ElemType, Native::VectorRef>& vb, Native::ValueRefs<ElemType>& valueRefs, vector<gcroot<array<ElemType>^>*>& pinBuffers, vector<gcroot<array<int>^>*>& pinIndices)
+    {
+        for each (auto item in list)
+        {
+            int size = item->Size;
+
+            // Buffer is required
+            if (item->Buffer == nullptr || item->Buffer->Length == 0)
+            {
+                throw gcnew CNTKRuntimeException("Invalid buffer (empty) for argument into ForwardPass", String::Empty);
+            }
+
+            // gcroot object manages the pointer so that it always corresponds to the correct managed location (even after gc relocation)
+            auto pBuf = new gcroot<array<ElemType>^>(item->Buffer);
+            pin_ptr<ElemType> pp = &(*pBuf)[0];
+            pinBuffers.push_back(pBuf);
+            vb.m_buffer.InitFrom(pp, size, size);
+
+            if (item->Indices != nullptr)
+            {
+                auto pInd = new gcroot<array<int>^>(item->Indices);
+                pin_ptr<int> pi = &(*pInd)[0];
+                pinIndices.push_back(pInd);
+                vb.m_indices.InitFrom(pi, item->Indices->Length, item->Indices->Length);
+            }
+
+            if (item->ColIndices != nullptr)
+            {
+                auto pColInd = new gcroot<array<int>^>(item->ColIndices);
+                pin_ptr<int> pci = &(*pColInd)[0];
+                pinIndices.push_back(pColInd);
+                vb.m_colIndices.InitFrom(pci, item->ColIndices->Length, item->ColIndices->Length);
+            }
+
+            valueRefs.push_back(vb);
         }
     }
 };
@@ -611,15 +561,13 @@ void EmitExtended()
 {
     ModelEvaluationExtendedF f;
     f.CreateNetwork("");
-    f.GetOutputSchema();
-    f.GetInputSchema();
+    f.GetSchema(NodeGroup::Specified);
     f.StartForwardEvaluation(nullptr);
     f.ForwardPass(nullptr, nullptr);
 
     ModelEvaluationExtendedD d;
     d.CreateNetwork("");
-    d.GetOutputSchema();
-    d.GetInputSchema();
+    d.GetSchema(NodeGroup::Specified);
     d.StartForwardEvaluation(nullptr);
     d.ForwardPass(nullptr, nullptr);
 

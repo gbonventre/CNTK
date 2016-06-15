@@ -47,7 +47,7 @@ namespace Microsoft.MSR.CNTK.Extensibility.Managed.Tests
             {
                 model.CreateNetwork(modelDefinition);
 
-                VariableSchema outputSchema = model.GetOutputSchema();
+                VariableSchema outputSchema = model.GetSchema(NodeGroup.Output);
 
                 model.StartForwardEvaluation(outputSchema.Select(s => s.Name).ToList<string>());
 
@@ -83,8 +83,8 @@ namespace Microsoft.MSR.CNTK.Extensibility.Managed.Tests
             {
                 model.CreateNetwork(modelDefinition);
 
-                VariableSchema outputSchema = model.GetOutputSchema();
-                VariableSchema inputSchema = model.GetInputSchema();
+                VariableSchema outputSchema = model.GetSchema(NodeGroup.Output);
+                VariableSchema inputSchema = model.GetSchema(NodeGroup.Input);
 
                 model.StartForwardEvaluation(outputSchema.Select(s => s.Name).ToList<string>());
 
@@ -122,7 +122,7 @@ namespace Microsoft.MSR.CNTK.Extensibility.Managed.Tests
             {
                 model.CreateNetwork(modelDefinition);
 
-                VariableSchema outputSchema = model.GetOutputSchema();
+                VariableSchema outputSchema = model.GetSchema(NodeGroup.Output);
                 model.StartForwardEvaluation(outputSchema.Select(s => s.Name).ToList<string>());
 
                 List<ValueBuffer<float>> outputBuffer = new List<ValueBuffer<float>>()
@@ -175,8 +175,8 @@ namespace Microsoft.MSR.CNTK.Extensibility.Managed.Tests
             {
                 model.CreateNetwork(modelDefinition);
 
-                VariableSchema outputSchema = model.GetOutputSchema();
-                VariableSchema inputSchema = model.GetInputSchema();
+                VariableSchema outputSchema = model.GetSchema(NodeGroup.Output);
+                VariableSchema inputSchema = model.GetSchema(NodeGroup.Input);
 
                 model.StartForwardEvaluation(outputSchema.Select(s => s.Name).ToList<string>());
 
