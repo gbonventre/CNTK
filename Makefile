@@ -581,6 +581,27 @@ $(IMAGEREADER): $(IMAGEREADER_OBJ) | $(CNTKMATH_LIB)
 endif
 
 ########################################
+# EvalLib
+########################################
+
+EVALLIB_SRC =\
+  $(SOURCEDIR)/EvalDll/CNTKEval.cpp \
+  $(SOURCEDIR)/CNTK/BrainScript/BrainScriptEvaluator.cpp \
+  $(SOURCEDIR)/CNTK/BrainScript/BrainScriptParser.cpp \ 
+
+EVALLIB_OBJ := $(patsubst %.cpp, $(OBJDIR)/%.o, $(EVALLIB_SRC))
+
+EVALLIB:=$(LIBDIR)/EvalLib.lib
+ALL += $(EVALLIB)
+SRC+=$(EVALLIB_SRC)
+
+$(EVALLIB): $(EVALLIB_OBJ) | $(CNTKMATH_LIB)
+	@echo $(SEPARATOR)
+	$(CXX) $(LDFLAGS) -static $(patsubst %,-L%, $(LIBDIR) $(LIBPATH)) $(patsubst %,$(RPATH)%, $(ORIGINDIR) $(LIBPATH)) -o $@ $^ -l$(CNTKMATH)
+endif
+
+
+########################################
 # 1bit SGD setup
 ########################################
 
@@ -595,6 +616,8 @@ endif
   COMMON_FLAGS += -DCNTK_PARALLEL_TRAINING_SUPPORT
   # temporarily adding to 1bit, need to work with others to fix it
 endif
+
+
 
 ########################################
 # cntk
