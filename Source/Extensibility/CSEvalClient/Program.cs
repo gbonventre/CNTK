@@ -276,7 +276,7 @@ namespace Microsoft.MSR.CNTK.Extensibility.Managed.CSEvalClient
                     // operating over a two constants, therefore no input is necessary.
                     model.CreateNetwork(modelDefinition);
 
-                    VariableSchema outputSchema = model.GetSchema(NodeGroup.Output);
+                    VariableSchema outputSchema = model.GetOutputSchema();
 
                     model.StartForwardEvaluation(outputSchema.Select(s => s.Name).ToList<string>());
 
