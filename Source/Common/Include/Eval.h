@@ -112,7 +112,7 @@ extern "C" EVAL_API void GetEvalD(IEvaluateModel<double>** peval);
 
 
 template <typename ElemType>
-class Eval : public IEvaluateModel<ElemType> //, protected Plugin
+class Eval : public IEvaluateModel<ElemType>, protected Plugin
 {
 private:
     IEvaluateModel<ElemType>* m_eval; // evaluation class pointer

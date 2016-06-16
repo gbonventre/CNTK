@@ -51,9 +51,9 @@ void CNTKEvalBase<ElemType>::CreateNetwork(const std::string& networkDescription
     config.Parse(networkDescription);
 
     std::vector<wstring> outputNodeNames;
-    m_net = GetModelFromConfig<ConfigParameters, ElemType>(config, L"outputNodeNames", outputNodeNames);
+    this->m_net = GetModelFromConfig<ConfigParameters, ElemType>(config, L"outputNodeNames", outputNodeNames);
     
-    if (m_net == nullptr)
+    if (this->m_net == nullptr)
     {
         LogicError("Unable to construct network from description");
     }
