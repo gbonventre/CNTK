@@ -26,6 +26,8 @@
 #include <vector>
 #include <string>
 
+#include "Basics.h"
+
 namespace Microsoft { namespace MSR { namespace CNTK {
 
 template <typename ElemType>
@@ -110,7 +112,7 @@ extern "C" EVAL_API void GetEvalD(IEvaluateModel<double>** peval);
 
 
 template <typename ElemType>
-class Eval : public IEvaluateModel<ElemType>, protected Plugin
+class Eval : public IEvaluateModel<ElemType> //, protected Plugin
 {
 private:
     IEvaluateModel<ElemType>* m_eval; // evaluation class pointer
@@ -268,7 +270,7 @@ struct VariableLayout
 
     // Dimension of the tensor, flattened to 1 dimension, for one entry on the dynamic axis.
     // E.g. for a tensor [2,3,*] this would be 6.
-    int m_numElements;
+    size_t m_numElements;
 };
 
 class VariableSchema : public std::vector<VariableLayout>
